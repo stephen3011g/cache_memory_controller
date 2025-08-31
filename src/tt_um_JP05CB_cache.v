@@ -1,7 +1,7 @@
 
 `default_nettype none
 
-module tt_um_JP05CB_cache (
+module tt_um_cache (
     input  wire [7:0] ui_in,    // dedicated inputs
     output wire [7:0] uo_out,   // dedicated outputs
     input  wire [7:0] uio_in,   // IOs
@@ -70,4 +70,5 @@ endmodule
 
 
 `default_nettype wire
+
 

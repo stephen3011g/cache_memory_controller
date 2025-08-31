@@ -53,7 +53,7 @@ module tb ();
     #10 ui_in = 0;
 
     #40;
-    $finish;
+    $stop;
   end
 
 endmodule

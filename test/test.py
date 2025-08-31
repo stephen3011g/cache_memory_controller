@@ -3,38 +3,65 @@
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles
+from cocotb.triggers import RisingEdge
+
+
+async def reset(dut):
+    dut.rst_n.value = 0
+    dut.ena.value   = 1
+    dut.ui_in.value = 0
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+    dut.rst_n.value = 1
+    await RisingEdge(dut.clk)
 
 
 @cocotb.test()
-async def test_project(dut):
-    dut._log.info("Start")
+async def test_cache_basic(dut):
+    """Test simple write and read operations in the tiny cache"""
 
-    # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, units="us")
-    cocotb.start_soon(clock.start())
+    cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
 
-    # Reset
-    dut._log.info("Reset")
-    dut.ena.value = 1
-    dut.ui_in.value = 0
-    dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 10)
-    dut.rst_n.value = 1
+    await reset(dut)
 
-    dut._log.info("Test project behavior")
+    # Helper to build ui_in bus
+    def make_ui(req_valid, req_rw, addr, data_in):
+        val = 0
+        val |= (req_valid & 1) << 0
+        val |= (req_rw & 1) << 1
+        val |= (addr & 0b11) << 2
+        val |= (data_in & 0b11) << 4
+        return val
 
-    # Set the input values you want to test
-    dut.ui_in.value = 20
-    dut.uio_in.value = 30
+    # --- Write test ---
+    dut.ui_in.value = make_ui(1, 1, addr=0b01, data_in=0b10)  # write 2 at addr=1
+    await RisingEdge(dut.clk)
 
-    # Wait for one clock cycle to see the output values
-    await ClockCycles(dut.clk, 1)
+    assert dut.uo_out.value.integer & 0x1 == 0, "First write should be miss (hit=0)"
 
-    # The following assersion is just an example of how to check the output values.
-    # Change it to match the actual expected output of your module:
-    assert dut.uo_out.value == 50
+    # --- Read test ---
+    dut.ui_in.value = make_ui(1, 0, addr=0b01, data_in=0)
+    await RisingEdge(dut.clk)
 
-    # Keep testing the module by changing the input values, waiting for
-    # one or more clock cycles, and asserting the expected output values.
+    hit = (dut.uo_out.value.integer >> 0) & 1
+    data = (dut.uo_out.value.integer >> 1) & 0b11
+    assert hit == 1, f"Expected hit when reading addr=1, got {hit}"
+    assert data == 0b10, f"Expected data=2, got {data}"
+
+    # --- Miss read test ---
+    dut.ui_in.value = make_ui(1, 0, addr=0b10, data_in=0)
+    await RisingEdge(dut.clk)
+
+    hit = (dut.uo_out.value.integer >> 0) & 1
+    assert hit == 0, "Expected miss for addr not written yet"
+
+    # --- Overwrite test ---
+    dut.ui_in.value = make_ui(1, 1, addr=0b01, data_in=0b11)  # overwrite with 3
+    await RisingEdge(dut.clk)
+
+    dut.ui_in.value = make_ui(1, 0, addr=0b01, data_in=0)
+    await RisingEdge(dut.clk)
+    hit = (dut.uo_out.value.integer >> 0) & 1
+    data = (dut.uo_out.value.integer >> 1) & 0b11
+    assert hit == 1
+    assert data == 0b11, f"Expected data=3 after overwrite, got {data}"

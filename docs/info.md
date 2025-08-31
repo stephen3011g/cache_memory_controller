@@ -8,8 +8,17 @@ You can also include images in this folder and reference them in the markdown. E
 -->
 
 ## How it works
+# Tiny Cache Demo
 
-Explain how your project works
+This project is a minimal cache memory controller built for TinyTapeout.
+It supports:
+- 4 entries
+- 2-bit addresses
+- 2-bit data
+- Read/Write operations with hit detection
+
+Useful as an educational demo of cache logic within the TinyTapeout cell limits.
+
 
 ## How to test
 
